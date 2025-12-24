@@ -26,7 +26,7 @@ export class VideoRoom implements OnInit {
   micOn = false;
 
   ngOnInit() {
-    this.socket = io('http://localhost:5000');
+    this.socket = io('http://127.0.0.1:4040');
 
     this.setupLocalMedia().then(() => {
       this.socket.emit('join-room', 'room123');
