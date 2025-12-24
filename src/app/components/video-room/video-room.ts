@@ -73,7 +73,7 @@ export class VideoRoom implements OnInit {
   joinRoom(roomId: string) {
     const backendUrl = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
       ? 'http://127.0.0.1:5000'
-      : 'http://127.0.0.1:4040';
+      : 'https://postpositively-nonvisional-tonette.ngrok-free.dev';
 
     this.socket = io(backendUrl, {
       transports: ['websocket'],
