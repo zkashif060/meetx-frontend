@@ -8,7 +8,7 @@
     <div *ngIf="meetingLink">
         <p>Share this link to invite others:</p>
         <input [value]="meetingLink" readonly />
-        <button (click)="navigator.clipboard.writeText(meetingLink)">Copy Link</button>
+        <button (click)="copyMeetingLink()">Copy Link</button>
     </div>
 </div>
 

@@ -81,6 +81,14 @@ export class VideoRoom implements OnInit {
     });
   }
 
+  copyMeetingLink() {
+    if (!this.meetingLink) return;
+    navigator.clipboard.writeText(this.meetingLink)
+      .then(() => console.log('Link copied'))
+      .catch(err => console.error('Copy failed', err));
+  }
+
+
   async setupLocalMedia() {
     try {
       const devices = await navigator.mediaDevices.enumerateDevices();
