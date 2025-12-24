@@ -52,7 +52,20 @@ export class VideoRoom implements OnInit {
       alert('Enter a Room ID to join');
       return;
     }
-    this.roomId = this.joinRoomId;
+
+    // Extract room ID if a full URL is pasted
+    let roomIdToJoin = this.joinRoomId;
+    try {
+      const url = new URL(this.joinRoomId);
+      const roomParam = url.searchParams.get('room');
+      if (roomParam) {
+        roomIdToJoin = roomParam;
+      }
+    } catch (e) {
+      // Not a URL, use as is
+    }
+
+    this.roomId = roomIdToJoin;
     this.meetingLink = `${window.location.origin}/?room=${this.roomId}`;
     this.joinRoom(this.roomId);
   }
@@ -62,7 +75,10 @@ export class VideoRoom implements OnInit {
       ? 'http://127.0.0.1:5000'
       : 'http://127.0.0.1:4040';
 
-    this.socket = io(backendUrl);
+    this.socket = io(backendUrl, {
+      transports: ['websocket'],
+      forceNew: true
+    });
 
     this.setupLocalMedia().then(() => {
       this.socket.emit('join-room', roomId);
