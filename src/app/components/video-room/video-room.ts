@@ -71,7 +71,7 @@ export class VideoRoom implements OnInit {
   }
 
   joinRoom(roomId: string) {
-    const backendUrl = 'https://postpositively-nonvisional-tonette.ngrok-free.dev';
+    const backendUrl = 'https://meetx-server-9im19phkm-zain-ullahs-projects-7bd91b35.vercel.app/';
 
     this.socket = io(backendUrl, {
       transports: ['websocket'],
