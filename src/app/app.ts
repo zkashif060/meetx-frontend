@@ -1,9 +1,10 @@
 import { Component, signal } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
+import { VideoRoom } from './components/video-room/video-room';
 
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet],
+  imports: [RouterOutlet, VideoRoom],
   templateUrl: './app.html',
   styleUrl: './app.scss'
 })

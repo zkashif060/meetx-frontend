@@ -1,0 +1,30 @@
+<div class="controls">
+    <div>
+        <video #localVideo autoplay muted></video>
+    </div>
+
+    <div *ngFor="let participant of participants.values()">
+        <video [srcObject]="participant.stream" autoplay></video>
+        <div>
+            <span>{{ participant.cameraOn ? '📹' : '🚫' }}</span>
+            <span>{{ participant.micOn ? '🎤' : '🔇' }}</span>
+        </div>
+    </div>
+
+    <button (click)="toggleCamera()">
+        {{ cameraOn ? 'Turn Camera Off' : 'Turn Camera On' }}
+    </button>
+    <button (click)="toggleMic()">
+        {{ micOn ? 'Mute Mic' : 'Unmute Mic' }}
+    </button>
+    <button (click)="shareScreen()">Share Screen</button>
+
+</div>
+
+<div class="video-container">
+    <video #localVideo autoplay playsinline muted></video>
+
+    <div *ngFor="let participant of participants.values()">
+        <video [srcObject]="participant.stream" autoplay playsinline></video>
+    </div>
+</div>
