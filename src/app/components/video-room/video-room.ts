@@ -43,7 +43,7 @@ export class VideoRoom implements OnInit {
 
   startMeeting() {
     this.roomId = uuidv4();
-    this.meetingLink = `${window.location.origin}/room/${this.roomId}`;
+    this.meetingLink = `${window.location.origin}/?room=${this.roomId}`;
     this.joinRoom(this.roomId);
   }
 
@@ -53,12 +53,16 @@ export class VideoRoom implements OnInit {
       return;
     }
     this.roomId = this.joinRoomId;
-    this.meetingLink = `${window.location.origin}/room/${this.roomId}`;
+    this.meetingLink = `${window.location.origin}/?room=${this.roomId}`;
     this.joinRoom(this.roomId);
   }
 
   joinRoom(roomId: string) {
-    this.socket = io('http://127.0.0.1:4040'); // Change to deployed backend if needed
+    const backendUrl = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+      ? 'http://127.0.0.1:5000'
+      : 'http://127.0.0.1:4040';
+
+    this.socket = io(backendUrl);
 
     this.setupLocalMedia().then(() => {
       this.socket.emit('join-room', roomId);
