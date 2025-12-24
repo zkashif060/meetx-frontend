@@ -1,6 +1,8 @@
 import { CommonModule } from '@angular/common';
 import { Component, ElementRef, OnInit, ViewChild } from '@angular/core';
+import { FormsModule } from '@angular/forms';
 import { io, Socket } from 'socket.io-client';
+import { v4 as uuidv4 } from 'uuid';
 
 interface Participant {
   id: string;
@@ -12,7 +14,7 @@ interface Participant {
 
 @Component({
   selector: 'app-video-room',
-  imports: [CommonModule],
+  imports: [CommonModule, FormsModule],
   templateUrl: './video-room.html',
   styleUrls: ['./video-room.scss'],
   standalone: true
@@ -25,11 +27,41 @@ export class VideoRoom implements OnInit {
   cameraOn = false;
   micOn = false;
 
+  // For link-based rooms
+  meetingLink: string | null = null;
+  joinRoomId: string = '';
+  roomId: string = '';
+
   ngOnInit() {
-    this.socket = io('http://127.0.0.1:4040');
+    const params = new URLSearchParams(window.location.search);
+    const room = params.get('room');
+    if (room) {
+      this.joinRoomId = room;
+      this.joinMeeting();
+    }
+  }
+
+  startMeeting() {
+    this.roomId = uuidv4();
+    this.meetingLink = `${window.location.origin}/room/${this.roomId}`;
+    this.joinRoom(this.roomId);
+  }
+
+  joinMeeting() {
+    if (!this.joinRoomId) {
+      alert('Enter a Room ID to join');
+      return;
+    }
+    this.roomId = this.joinRoomId;
+    this.meetingLink = `${window.location.origin}/room/${this.roomId}`;
+    this.joinRoom(this.roomId);
+  }
+
+  joinRoom(roomId: string) {
+    this.socket = io('http://127.0.0.1:4040'); // Change to deployed backend if needed
 
     this.setupLocalMedia().then(() => {
-      this.socket.emit('join-room', 'room123');
+      this.socket.emit('join-room', roomId);
 
       // Existing users when new user joins
       this.socket.on('existing-users', (users: string[]) => {
@@ -70,12 +102,10 @@ export class VideoRoom implements OnInit {
       this.localVideo.nativeElement.muted = true;
       await this.localVideo.nativeElement.play();
 
-      // Initialize UI flags
       this.cameraOn = hasCamera;
       this.micOn = hasMic;
-
     } catch (err: any) {
-      console.error('Camera/mic access denied or not available', err);
+      console.error('Camera/mic access denied', err);
       alert('Camera or microphone access denied!');
       this.localStream = new MediaStream();
     }
@@ -83,8 +113,6 @@ export class VideoRoom implements OnInit {
 
   createPeerConnection(userId: string, isOfferer: boolean) {
     const pc = new RTCPeerConnection();
-
-    // Add local tracks
     this.localStream.getTracks().forEach(track => pc.addTrack(track, this.localStream));
 
     const participant: Participant = {
@@ -96,19 +124,16 @@ export class VideoRoom implements OnInit {
     };
     this.participants.set(userId, participant);
 
-    // Remote tracks
     pc.ontrack = (event) => {
       event.streams[0].getTracks().forEach(track => participant.stream.addTrack(track));
     };
 
-    // ICE candidates
     pc.onicecandidate = (event) => {
       if (event.candidate) {
         this.socket.emit('signal', { to: userId, signal: { candidate: event.candidate } });
       }
     };
 
-    // Offer / Answer
     if (isOfferer) {
       pc.createOffer().then(offer => {
         pc.setLocalDescription(offer);
@@ -122,10 +147,7 @@ export class VideoRoom implements OnInit {
   async handleSignal(data: any) {
     const userId = data.from;
     let participant = this.participants.get(userId);
-
-    if (!participant) {
-      participant = this.createPeerConnection(userId, false);
-    }
+    if (!participant) participant = this.createPeerConnection(userId, false);
 
     const pc = participant.peerConnection;
     const signal = data.signal;
