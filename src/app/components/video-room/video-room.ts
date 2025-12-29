@@ -71,7 +71,7 @@ export class VideoRoom implements OnInit {
   }
 
   joinRoom(roomId: string) {
-    const backendUrl = 'https://meetx-server-9im19phkm-zain-ullahs-projects-7bd91b35.vercel.app/';
+    const backendUrl = 'http://localhost:5001';
 
     this.socket = io(backendUrl, {
       transports: ['websocket'],
@@ -83,16 +83,24 @@ export class VideoRoom implements OnInit {
 
       // Existing users when new user joins
       this.socket.on('existing-users', (users: string[]) => {
-        users.forEach(userId => this.createPeerConnection(userId, true));
+        users.forEach(userId => {
+          if (!this.participants.has(userId)) {
+            this.createPeerConnection(userId, true);
+          }
+        });
       });
 
       // New participant joined
       this.socket.on('user-joined', (userId: string) => {
-        this.createPeerConnection(userId, false);
+        if (!this.participants.has(userId)) {
+          this.createPeerConnection(userId, false);
+        }
       });
 
       // Signaling messages
-      this.socket.on('signal', (data: any) => this.handleSignal(data));
+      this.socket.on('signal', async (data: any) => {
+        await this.handleSignal(data);
+      });
 
       // Participant left
       this.socket.on('user-left', (userId: string) => this.removeParticipant(userId));
@@ -109,37 +117,44 @@ export class VideoRoom implements OnInit {
 
   async setupLocalMedia() {
     try {
-      const devices = await navigator.mediaDevices.enumerateDevices();
-      const hasCamera = devices.some(d => d.kind === 'videoinput');
-      const hasMic = devices.some(d => d.kind === 'audioinput');
-
-      if (!hasCamera && !hasMic) {
-        alert('No camera or microphone found.');
-        this.localStream = new MediaStream();
-        return;
-      }
-
       this.localStream = await navigator.mediaDevices.getUserMedia({
-        video: hasCamera,
-        audio: hasMic
+        video: true,
+        audio: true
       });
 
-      this.localVideo.nativeElement.srcObject = this.localStream;
-      this.localVideo.nativeElement.muted = true;
-      await this.localVideo.nativeElement.play();
+      if (this.localVideo) {
+        this.localVideo.nativeElement.srcObject = this.localStream;
+        this.localVideo.nativeElement.muted = true;
+        await this.localVideo.nativeElement.play();
+      }
 
-      this.cameraOn = hasCamera;
-      this.micOn = hasMic;
+      this.cameraOn = true;
+      this.micOn = true;
     } catch (err: any) {
       console.error('Camera/mic access denied', err);
-      alert('Camera or microphone access denied!');
+      // Fallback to empty stream if denied
       this.localStream = new MediaStream();
+      this.cameraOn = false;
+      this.micOn = false;
     }
   }
 
   createPeerConnection(userId: string, isOfferer: boolean) {
-    const pc = new RTCPeerConnection();
-    this.localStream.getTracks().forEach(track => pc.addTrack(track, this.localStream));
+    const configuration = {
+      iceServers: [
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' }
+      ]
+    };
+
+    const pc = new RTCPeerConnection(configuration);
+
+    // Add local tracks to the connection
+    if (this.localStream) {
+      this.localStream.getTracks().forEach(track => {
+        pc.addTrack(track, this.localStream);
+      });
+    }
 
     const participant: Participant = {
       id: userId,
@@ -148,10 +163,14 @@ export class VideoRoom implements OnInit {
       cameraOn: true,
       micOn: true
     };
+
     this.participants.set(userId, participant);
 
     pc.ontrack = (event) => {
-      event.streams[0].getTracks().forEach(track => participant.stream.addTrack(track));
+      console.log('Received remote track from:', userId);
+      event.streams[0].getTracks().forEach(track => {
+        participant.stream.addTrack(track);
+      });
     };
 
     pc.onicecandidate = (event) => {
@@ -161,8 +180,8 @@ export class VideoRoom implements OnInit {
     };
 
     if (isOfferer) {
-      pc.createOffer().then(offer => {
-        pc.setLocalDescription(offer);
+      pc.createOffer().then(async offer => {
+        await pc.setLocalDescription(offer);
         this.socket.emit('signal', { to: userId, signal: { sdp: offer } });
       });
     }
@@ -173,20 +192,28 @@ export class VideoRoom implements OnInit {
   async handleSignal(data: any) {
     const userId = data.from;
     let participant = this.participants.get(userId);
-    if (!participant) participant = this.createPeerConnection(userId, false);
+
+    if (!participant) {
+      // If we receive a signal from someone we don't know, create a connection (non-offerer)
+      participant = this.createPeerConnection(userId, false);
+    }
 
     const pc = participant.peerConnection;
     const signal = data.signal;
 
-    if (signal.sdp) {
-      await pc.setRemoteDescription(new RTCSessionDescription(signal.sdp));
-      if (signal.sdp.type === 'offer') {
-        const answer = await pc.createAnswer();
-        await pc.setLocalDescription(answer);
-        this.socket.emit('signal', { to: userId, signal: { sdp: answer } });
+    try {
+      if (signal.sdp) {
+        await pc.setRemoteDescription(new RTCSessionDescription(signal.sdp));
+        if (signal.sdp.type === 'offer') {
+          const answer = await pc.createAnswer();
+          await pc.setLocalDescription(answer);
+          this.socket.emit('signal', { to: userId, signal: { sdp: answer } });
+        }
+      } else if (signal.candidate) {
+        await pc.addIceCandidate(new RTCIceCandidate(signal.candidate));
       }
-    } else if (signal.candidate) {
-      await pc.addIceCandidate(new RTCIceCandidate(signal.candidate));
+    } catch (err) {
+      console.error('Error handling signal:', err);
     }
   }
 
